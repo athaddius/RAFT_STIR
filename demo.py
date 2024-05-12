@@ -58,8 +58,36 @@ def demo(args):
 
             padder = InputPadder(image1.shape)
             image1, image2 = padder.pad(image1, image2)
+            #breakpoint()
 
-            flow_low, flow_up = model(image1, image2, iters=20, test_mode=True)
+            numiters=12
+            flow_low, flow_up = model(image1, image2, iters=numiters, test_mode=True)
+            kwargs = {"iters":numiters, "test_mode": True}
+            args = (image1, image2)
+            onnx_model = torch.onnx.export(model,
+                    (image1, image2,kwargs),
+                    "raftsmall.onnx",
+                    export_params=True,
+                    opset_version=17,
+                    do_constant_folding=True,
+                    input_names = ['image1', 'image2'],
+                    output_names = ['flow_low', 'flow_up'],
+                    verbose=False)
+            #onnx_model = torch.onnx.dynamo_export(model, *args, **kwargs)
+            import onnxruntime as ort
+            ort_session = ort.InferenceSession("raftsmall.onnx")
+
+
+            def to_numpy(tensor):
+                    return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
+
+            outputs = ort_session.run(
+                        None,
+                        {"image1": to_numpy(image1), "image2": to_numpy(image2)},
+                            )
+            flow_up = flow_up.cpu().numpy()
+            breakpoint()
+            print(outputs[1]-flow_up)
             viz(image1, flow_up)
 
 
