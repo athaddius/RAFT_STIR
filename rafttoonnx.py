@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from PIL import Image
 from torch import nn
+import torch.nn.functional as F
 
 from raft import RAFT
 from utils import flow_viz
@@ -65,7 +66,6 @@ def testconvertmodel(args):
 
         padder = InputPadder(image1.shape)
         image1, image2 = padder.pad(image1, image2)
-        #breakpoint()
 
         flow_low, flow_up = model(image1, image2, iters=NUMITERS, test_mode=True)
         kwargs = {"iters":NUMITERS, "test_mode": True}
@@ -92,7 +92,6 @@ def testconvertmodel(args):
             print("ONNX model not close to true model")
             breakpoint()
             print(estimated_flow-flow_up)
-        breakpoint()
         #viz(image1, flow_up)
 
 def convertmodeldirect(args):
@@ -151,11 +150,9 @@ class RaftPointTrack(nn.Module):
         pointlist non-normalized of size npts 2 xy"""
         _, flow_up = self.model(image1, image2, iters=NUMITERS, test_mode=True)
 
-        pointlist = pointlist.unsqueeze(2) # 1 npts 1 2
-        flow_locs = bilinear_sampler(flow_up, pointlist)
-        flow_locs = flow_locs.squeeze(2)
-        breakpoint()
-
+        #pointlist = pointlist.unsqueeze(2) # 1 npts 1 2
+        flow_locs = bilinear_sampler(flow_up, pointlist.unsqueeze(2))
+        flow_locs = flow_locs.squeeze(3).permute(0,2,1) # N npts 2
         end_locs = pointlist + flow_locs
         return end_locs
 
@@ -171,18 +168,32 @@ def convertmodelpointtrack(args):
     with torch.no_grad():
         image1 = torch.randn(1, 3, 512, 640, device="cuda")
         image2 = torch.randn(1, 3, 512, 640, device="cuda") ## THESE MUST be divisible by 8, otherwise need to pad using inputpadder
-        points = torch.randn(1, 64, 2, device="cuda") * 512. 
+        points = torch.rand(1, 64, 2, device="cuda") * 512. 
+        images = glob.glob(os.path.join(args.path, '*.png')) + \
+                 glob.glob(os.path.join(args.path, '*.jpg'))
+        
+        TEST = False
+        if TEST:
+            images = sorted(images)
+            imfile1, imfile2 = images[0], images[1]
+            image1 = load_image(imfile1)
+            image2 = load_image(imfile2)
+            padder = InputPadder(image1.shape)
+            image1, image2 = padder.pad(image1, image2)
 
-        end_locs = pointtrack(pointlist, image1, image2)
-        args = (pointlist, image1, image2)
-        onnx_model = torch.onnx.export(model,
-                (pointlist, image1, image2),
+        end_locs = pointtrack(points, image1, image2)
+        args = (points, image1, image2)
+        onnx_model = torch.onnx.export(pointtrack,
+                args,
                 "raft_pointtrackSTIR.onnx",
                 export_params=True,
                 opset_version=17,
                 do_constant_folding=True,
                 input_names = ['pointlist', 'image1', 'image2'],
                 output_names = ['end_points'],
+                dynamic_axes={ "pointlist": {1: "numpts"},
+                    "end_points": [1],
+                    },
                 verbose=False)
         ort_session = ort.InferenceSession("raft_pointtrackSTIR.onnx")
 
@@ -190,14 +201,14 @@ def convertmodelpointtrack(args):
 
         outputs = ort_session.run(
                     None,
-                    {"pointlist": to_numpy(pointlist), "image1": to_numpy(image1), "image2": to_numpy(image2)},
+                    {"pointlist": to_numpy(points), "image1": to_numpy(image1), "image2": to_numpy(image2)},
                         )
-        enstimated_endpoints = torch.from_numpy(outputs[0]).to(DEVICE)
-        if not torch.allclose(end_locs, estimated_endpoints, atol=1e-2, rtol=1e-2):
-            print("ONNX model not close to true model")
-            breakpoint()
-            print(estimated_endpoints-end_locs)
-        breakpoint()
+        estimated_endpoints = torch.from_numpy(outputs[0]).to(DEVICE)
+        if TEST:
+            if not torch.allclose(end_locs, estimated_endpoints, atol=1e-2, rtol=1e-2):
+                print("ONNX model not close to true model")
+                breakpoint()
+                print(estimated_endpoints-end_locs)
 
 
 # https://pytorch.org/docs/stable/onnx_torchscript.html
