@@ -10,6 +10,7 @@ import glob
 import numpy as np
 import torch
 from PIL import Image
+from torch import nn
 
 from raft import RAFT
 from utils import flow_viz
