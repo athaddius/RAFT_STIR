@@ -1,4 +1,19 @@
+# RAFT onnx and torchscript for STIR challenge
+
+This repository is a fork of RAFT (see later section) for the [STIR Challenge](https://stir-challenge.github.io)
+
+The main addition is the `rafttoonnx.py` file which converts from the RAFT model to both a torchscript `raft_pointtrackSTIR.pt` and ONNX `raft_pointtrackSTIR.onnx` which can be used as the RAFT model for [STIRMetrics](https://github.com/athaddius/STIRMetrics)
+
+To export the models, first install RAFT and the dependencies from the following section. Then run
+```
+python rafttoonnx.py
+```
+
+
+
+
 # RAFT
+
 This repository contains the source code for our paper:
 
 [RAFT: Recurrent All Pairs Field Transforms for Optical Flow](https://arxiv.org/pdf/2003.12039.pdf)<br/>

@@ -1,4 +1,3 @@
-
 import sys
 sys.path.append('core')
 
@@ -197,6 +196,7 @@ def convertmodelpointtrack(args):
                     },
                 verbose=False)
         ort_session = ort.InferenceSession("raft_pointtrackSTIR.onnx")
+        print("Saved ONNX model")
 
 
 
@@ -213,14 +213,13 @@ def convertmodelpointtrack(args):
 
 
 
-        print("Saving torchscript model")
 
         traced_track = torch.jit.trace(pointtrack, (points, image1, image2))
         traced_track.save('raft_pointtrackSTIR.pt')
+        print("Saved torchscript model")
 
         loaded = torch.jit.load('raft_pointtrackSTIR.pt')
         end_locs_test = loaded(points, image1, image2)
-        breakpoint()
         if TEST:
             if not torch.allclose(end_locs, end_locs_test):
                 print("ONNX model not close to true model")
