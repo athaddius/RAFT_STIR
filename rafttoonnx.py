@@ -171,7 +171,7 @@ def convertmodelpointtrack(args):
         images = glob.glob(os.path.join(args.path, '*.png')) + \
                  glob.glob(os.path.join(args.path, '*.jpg'))
         
-        TEST = True
+        TEST = False
         if TEST:
             images = sorted(images)
             imfile1, imfile2 = images[0], images[1]
