@@ -172,7 +172,7 @@ def convertmodelpointtrack(args):
         images = glob.glob(os.path.join(args.path, '*.png')) + \
                  glob.glob(os.path.join(args.path, '*.jpg'))
         
-        TEST = False
+        TEST = True
         if TEST:
             images = sorted(images)
             imfile1, imfile2 = images[0], images[1]
@@ -180,6 +180,7 @@ def convertmodelpointtrack(args):
             image2 = load_image(imfile2)
             padder = InputPadder(image1.shape)
             image1, image2 = padder.pad(image1, image2)
+
 
         end_locs = pointtrack(points, image1, image2)
         args = (points, image1, image2)
@@ -206,6 +207,22 @@ def convertmodelpointtrack(args):
         estimated_endpoints = torch.from_numpy(outputs[0]).to(DEVICE)
         if TEST:
             if not torch.allclose(end_locs, estimated_endpoints, atol=1e-2, rtol=1e-2):
+                print("ONNX model not close to true model")
+                breakpoint()
+                print(estimated_endpoints-end_locs)
+
+
+
+        print("Saving torchscript model")
+
+        traced_track = torch.jit.trace(pointtrack, (points, image1, image2))
+        traced_track.save('raft_pointtrackSTIR.pt')
+
+        loaded = torch.jit.load('raft_pointtrackSTIR.pt')
+        end_locs_test = loaded(points, image1, image2)
+        breakpoint()
+        if TEST:
+            if not torch.allclose(end_locs, end_locs_test):
                 print("ONNX model not close to true model")
                 breakpoint()
                 print(estimated_endpoints-end_locs)
