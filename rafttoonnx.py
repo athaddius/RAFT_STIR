@@ -78,10 +78,8 @@ def testconvertmodel(args):
                 input_names = ['image1', 'image2'],
                 output_names = ['flow_low', 'flow_up'],
                 verbose=False)
-        ort_session = ort.InferenceSession("raftsmall.onnx")
 
-
-
+        ort_session = ort.InferenceSession("raftsmall.onnx", providers=["CPUExecutionProvider"])
         outputs = ort_session.run(
                     None,
                     {"image1": to_numpy(image1), "image2": to_numpy(image2)},
@@ -166,8 +164,9 @@ def convertmodelpointtrack(args):
 
     with torch.no_grad():
         image1 = torch.randn(1, 3, 512, 640, device="cuda")
-        image2 = torch.randn(1, 3, 512, 640, device="cuda") ## THESE MUST be divisible by 8, otherwise need to pad using inputpadder
-        points = torch.rand(1, 64, 2, device="cuda") * 512. 
+        image2 = torch.randn(1, 3, 512, 640, device="cuda") ## for raft, THESE MUST be divisible by 8, otherwise need to pad using inputpadder
+        POINTCOUNT = 32 # for the challenge, we are fixing the pointcount to 32 for model speed eval
+        points = torch.rand(1, POINTCOUNT, 2, device="cuda") * 512. 
         images = glob.glob(os.path.join(args.path, '*.png')) + \
                  glob.glob(os.path.join(args.path, '*.jpg'))
         
@@ -191,15 +190,12 @@ def convertmodelpointtrack(args):
                 do_constant_folding=True,
                 input_names = ['pointlist', 'image1', 'image2'],
                 output_names = ['end_points'],
-                dynamic_axes={ "pointlist": {1: "numpts"},
-                    "end_points": [1],
-                    },
                 verbose=False)
-        ort_session = ort.InferenceSession("raft_pointtrackSTIR.onnx")
         print("Saved ONNX model")
 
 
 
+        ort_session = ort.InferenceSession("raft_pointtrackSTIR.onnx", providers=["CPUExecutionProvider"])
         outputs = ort_session.run(
                     None,
                     {"pointlist": to_numpy(points), "image1": to_numpy(image1), "image2": to_numpy(image2)},
